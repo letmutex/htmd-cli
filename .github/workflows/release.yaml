@@ -15,24 +15,21 @@ jobs:
           - release_for: Linux-x86_64
             os: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
-            bin: cargo-htmd
-            bin_archived: htmd
+            bin: htmd
             name: htmd-cli-linux-x86_64.tar.gz
             command: build
 
           - release_for: Windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
-            bin: cargo-htmd.exe
-            bin_archived: htmd.exe
+            bin: htmd.exe
             name: htmd-cli-windows-x86_64.zip
             command: both
 
           - release_for: macOS-x86_64
             os: macOS-latest
             target: x86_64-apple-darwin
-            bin: cargo-htmd
-            bin_archived: htmd
+            bin: htmd
             name: htmd-cli-darwin-x86_64.tar.gz
             command: both
 
@@ -61,24 +58,13 @@ jobs:
           args: "--locked --release"
           strip: true
 
-      - name: Rename binary on Linux or macOS
-        if: runner.os != 'Windows'
-        run: |
-          mv target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin_archived }}
-
-      - name: Rename binary on Windows
-        if: runner.os == 'Windows'
-        run: |
-          Rename-Item -Path target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} ${{ matrix.platform.bin_archived }}
-        shell: pwsh
-
       - name: Compress binary
         if: runner.os != 'Windows'
-        run: tar -czvf ${{ matrix.platform.name }} -C target/${{ matrix.platform.target }}/release ${{ matrix.platform.bin_archived }}
+        run: tar -czvf ${{ matrix.platform.name }} -C target/${{ matrix.platform.target }}/release ${{ matrix.platform.bin }}
 
       - name: Compress binary for Windows
         if: runner.os == 'Windows'
-        run: powershell Compress-Archive -Path target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin_archived }} -DestinationPath ${{ matrix.platform.name }}
+        run: powershell Compress-Archive -Path target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} -DestinationPath ${{ matrix.platform.name }}
 
       - name: Fetch all tags
         run: git fetch --tags
