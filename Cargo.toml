@@ -1,0 +1,30 @@
+[package]
+name = "htmd-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["letmutex"]
+description = "The command line tool for htmd."
+license = "Apache-2.0"
+repository = "https://github.com/letmutex/htmd-cli"
+homepage = "https://github.com/letmutex/htmd-cli"
+keywords = ["cli", "html", "markdown", "converter"]
+categories = ["text-processing", "parsing", "command-line-utilities"]
+readme = "README.md"
+
+[dependencies]
+clap = "4.5.7"
+glob = "0.3.1"
+htmd = { git = "https://github.com/letmutex/htmd" }
+toml = "0.8.14"
+tokio = { version = "1.38.0", features = ["macros", "fs", "rt-multi-thread"] }
+
+[dev-dependencies.uuid]
+version = "1.8.0"
+features = [
+    "v4",       # Lets you generate random UUIDs
+    "fast-rng", # Use a faster (but still sufficiently random) RNG
+]
+
+[[bin]]
+name = "cargo-htmd"
+path = "src/main.rs"

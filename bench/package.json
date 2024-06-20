@@ -1,0 +1,14 @@
+{
+  "name": "bench",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "^1.1.4",
+    "@types/turndown": "^5.0.4",
+    "puppeteer": "^22.11.2",
+    "toml": "^3.0.0",
+    "turndown": "7.2.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

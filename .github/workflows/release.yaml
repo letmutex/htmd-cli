@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Release - ${{ matrix.platform.release_for }}
+    strategy:
+      matrix:
+        platform:
+          - release_for: Linux-x86_64
+            os: ubuntu-20.04
+            target: x86_64-unknown-linux-gnu
+            bin: cargo-htmd
+            bin_archived: htmd
+            name: htmd-cli-linux-x86_64.tar.gz
+            command: build
+
+          - release_for: Windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: cargo-htmd.exe
+            bin_archived: htmd.exe
+            name: htmd-cli-windows-x86_64.zip
+            command: both
+
+          - release_for: macOS-x86_64
+            os: macOS-latest
+            target: x86_64-apple-darwin
+            bin: cargo-htmd
+            bin_archived: htmd
+            name: htmd-cli-darwin-x86_64.tar.gz
+            command: both
+
+    permissions:
+      contents: write
+
+    runs-on: ${{ matrix.platform.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust
+        run: rustup update stable && rustup default stable
+
+      - name: Build
+        run: cargo build
+
+      - name: Test
+        run: cargo test
+
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: ${{ matrix.platform.command }}
+          target: ${{ matrix.platform.target }}
+          args: "--locked --release"
+          strip: true
+
+      - name: Rename binary on Linux or macOS
+        if: runner.os != 'Windows'
+        run: |
+          mv target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin_archived }}
+
+      - name: Rename binary on Windows
+        if: runner.os == 'Windows'
+        run: |
+          Rename-Item -Path target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} ${{ matrix.platform.bin_archived }}
+        shell: pwsh
+
+      - name: Compress binary
+        if: runner.os != 'Windows'
+        run: tar -czvf ${{ matrix.platform.name }} -C target/${{ matrix.platform.target }}/release ${{ matrix.platform.bin_archived }}
+
+      - name: Compress binary for Windows
+        if: runner.os == 'Windows'
+        run: powershell Compress-Archive -Path target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin_archived }} -DestinationPath ${{ matrix.platform.name }}
+
+      - name: Fetch all tags
+        run: git fetch --tags
+
+      - name: Get latest tag on Linux or macOS
+        if: runner.os != 'Windows'
+        id: get-latest-tag-linux
+        run: |
+          # Get the latest tag name
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest tag: $LATEST_TAG"
+          # Set the output
+          echo "latest-tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Get latest tag on Windows
+        if: runner.os == 'Windows'
+        id: get-latest-tag-windows
+        run: |
+          # Get the latest tag name
+          $LATEST_TAG = git describe --tags $(git rev-list --tags --max-count=1)
+          echo "Latest tag: $LATEST_TAG"
+          # Set the output
+          echo "latest-tag=$LATEST_TAG" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Release
+        if: steps.get-latest-tag-linux.outputs.latest-tag != '' || steps.get-latest-tag-windows.outputs.latest-tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get-latest-tag-linux.outputs.latest-tag || steps.get-latest-tag-windows.outputs.latest-tag }}
+          files: ./${{ matrix.platform.name }}

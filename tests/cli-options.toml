@@ -1,0 +1,5 @@
+[options]
+heading-style = "setex"
+hr-style = "asterisks"
+br-style = "backslash"
+flatten-output = true

@@ -1,0 +1,52 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  benchmark:
+    name: Rust project - latest
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust
+        run: rustup update stable && rustup default stable
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Pandoc
+        run: |
+          wget https://github.com/jgm/pandoc/releases/download/3.2/pandoc-3.2-1-amd64.deb
+          sudo dpkg -i pandoc-3.2-1-amd64.deb
+
+      - name: Install hyperfine
+        run: |
+          wget https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
+          sudo dpkg -i hyperfine_1.18.0_amd64.deb
+
+      - name: Cargo build --release
+        run: cargo build --release
+
+      - name: Bun install dependencies
+        working-directory: ./bench
+        run: bun install
+
+      - name: Run benchmark
+        run: bun bench/bench.ts
+
+      - name: Commit results readme
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Update benchmark results
+          file_pattern: "bench/README.md"
