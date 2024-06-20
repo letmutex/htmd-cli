@@ -26,5 +26,5 @@ features = [
 ]
 
 [[bin]]
-name = "cargo-htmd"
+name = "htmd"
 path = "src/main.rs"

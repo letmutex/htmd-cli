@@ -65,17 +65,8 @@ htmd test.html --config htmd-options.toml
 
 ### Cargo
 
-Install the package
-
 ```bash
 cargo install htmd-cli
-```
-
-Use `cargo-htmd` or `cargo htmd`
-
-```bash
-cargo-htmd hello.html
-cargo htmd -i hello.html # Require explicit input option
 ```
 
 ### Binaries
