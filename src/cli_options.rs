@@ -110,29 +110,29 @@ pub(crate) fn cli_args() -> Vec<Arg> {
         Arg::new("input")
             .short('i')
             .long("input")
-            .help("The input. Can be stdin ('-'), file, directory, or a glob pattern; defaults to stdin")
+            .help("Specify input. Can be stdin ('-'), file, directory, or glob pattern; defaults to stdin")
             .num_args(1),
         Arg::new("output")
             .short('o')
             .long("output")
             .help(
-                "The output. Can be stdout ('-'), file, or directory; defaults to stdout",
+                "Specify output. Can be stdout ('-'), file, or directory; defaults to stdout",
             )
             .num_args(1),
         Arg::new("config")
             .long("config")
             .help(
-                "The cli options toml config file, options are within [options] section;\n\
+                "Read cli options from a toml config file. Options are within [options] section;\n\
                 if specified, other options will be ignored except for input and output",
             )
             .num_args(1),
         Arg::new("flatten-output")
             .long("flatten-output")
-            .help("Don't keep the original directory hierarchy on output files")
+            .help("Flat the output files in the output folder")
             .action(ArgAction::SetTrue),
         Arg::new("ignored-tags")
             .long("ignored-tags")
-            .help("An HTML tag list to be ignored, separated by commas")
+            .help("Set an HTML tag list to be ignored, separated by commas")
             .num_args(1),
         Arg::new("heading-style")
             .long("heading-style")
@@ -184,7 +184,7 @@ pub(crate) fn cli_args() -> Vec<Arg> {
             .value_parser(["dash", "asterisk"]),
         Arg::new("preformatted-code")
             .long("preformatted-code")
-            .help("If specified, whitespace in inline code tags will be preserved")
+            .help("Preserve whitespace in inline code tags")
             .action(ArgAction::SetTrue),
         Arg::new("version")
             .short('v')
