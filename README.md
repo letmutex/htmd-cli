@@ -14,6 +14,9 @@
 ### Basic
 
 ```bash
+# Read input from stdin
+htmd
+
 # Will write output to stdout
 htmd test.html
 
@@ -34,7 +37,7 @@ htmd ./pages -o converted
 
 Stdin (`-` as the filename), file, directory, and glob pattern are supported.
 
-This default input is `stdin`, so after you type only `htmd` it will wait for input, to submit typing, press <kbd>Ctrl</kbd> + <kbd>D</kbd> (<kbd>Ctrl</kbd> + <kbd>Z</kbd> on Windows).
+This default input is `stdin`, so after you type only `htmd` it will wait for input, to finish typing, press <kbd>Ctrl</kbd> + <kbd>D</kbd> (<kbd>Ctrl</kbd> + <kbd>Z</kbd> on Windows).
 
 Example inputs:
 
@@ -66,7 +69,7 @@ htmd test.html --ignored-tags "head,script,style" --heading-style setex
 By default, when converting files using glob patterns such as `pages/**/*.html`, output files will follow the original folder hierarchy, to flatten output files, use `--flatten-output`.
 
 ```bash
-htmd pages/**/*.html --output converted
+htmd pages/**/*.html --output converted --flatten-output
 ```
 
 ### Load options form toml file
