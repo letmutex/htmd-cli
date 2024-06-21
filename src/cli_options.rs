@@ -110,12 +110,14 @@ pub(crate) fn cli_args() -> Vec<Arg> {
         Arg::new("input")
             .short('i')
             .long("input")
-            .help("Input file, directory or a glob pattern")
+            .help("The input. Can be stdin ('-'), file, directory, or a glob pattern; defaults to stdin")
             .num_args(1),
         Arg::new("output")
             .short('o')
             .long("output")
-            .help("Output file or directory")
+            .help(
+                "The output. Can be stdout ('-'), file, or directory; defaults to stdout",
+            )
             .num_args(1),
         Arg::new("config")
             .long("config")

@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod tests {
     use std::{
-        env, fs, io,
+        env, fs,
+        io::{self, Write},
         path::{Path, PathBuf},
-        process::Command,
+        process::{Command, Stdio},
     };
 
     struct ExecResult {
@@ -19,15 +20,44 @@ mod tests {
     }
 
     #[test]
-    fn no_options() {
-        let result = exec(vec![]);
+    fn stdin_in_stdout_out() {
+        let html = "<h1>Hello</h1>";
+        let result = exec_with_input(Some(html), vec![]);
         assert_eq!(result.exit_code, 0);
-        assert!(result.stdout.contains("No input."));
+        assert_eq!("# Hello", result.stdout);
     }
 
     #[test]
-    fn unnamed_file_input() {
-        let result = exec_with_temp_fs(vec!["hello.html"], |dir| {
+    fn stdin_in_stdout_out_with_explicit_input() {
+        let html = "<h1>Hello</h1>";
+        let result = exec_with_input(Some(html), vec!["--input", "-"]);
+        assert_eq!(result.exit_code, 0);
+        assert_eq!("# Hello", result.stdout);
+    }
+
+    #[test]
+    fn stdin_in_file_out() {
+        let html = "<h1>Hello</h1>";
+        let result =
+            exec_with_temp_fs_and_input(Some(html), vec!["--output", "output.md"], |dir| {
+                let output = dir.join("output.md");
+                assert!(output.exists());
+                assert_eq!("# Hello", fs::read_to_string(output).unwrap());
+            });
+        assert_eq!(result.exit_code, 0);
+    }
+
+    #[test]
+    fn stdin_in_folder_out() {
+        let html = "<h1>Hello</h1>";
+        let result = exec_with_input(Some(html), vec!["-", "--output", "./"]);
+        assert_eq!(result.exit_code, 1);
+        assert!(result.stderr.contains("Output cannot be a directory."));
+    }
+
+    #[test]
+    fn unnamed_file_in_folder_out() {
+        let result = exec_with_temp_fs(vec!["hello.html", "--output", "./"], |dir| {
             assert!(dir.join("hello.md").exists());
         });
         assert_eq!(result.exit_code, 0);
@@ -35,35 +65,47 @@ mod tests {
     }
 
     #[test]
-    fn with_input_option() {
-        let result = exec_with_temp_fs(vec!["--input", "hello.html"], |dir| {
+    fn file_in_with_input_option() {
+        let result = exec_with_temp_fs(vec!["--input", "hello.html", "--output", "./"], |dir| {
             assert!(dir.join("hello.md").exists());
         });
         assert_eq!(result.exit_code, 0);
     }
 
     #[test]
-    fn file_input_not_exists() {
+    fn file_in_not_found() {
         let result = exec_with_temp_fs(vec!["404.html"], |_| {});
         assert_eq!(result.exit_code, 1);
         assert!(result.stderr.contains("File or directory does not exist"));
     }
 
     #[test]
-    fn file_input_with_file_output() {
+    fn file_in_file_out() {
         let result = exec_with_temp_fs(
             vec!["hello.html", "--output", "hello_converted.md"],
             |dir| {
-                assert!(dir.join("hello_converted.md").exists());
+                let file = dir.join("hello_converted.md");
+                assert!(file.exists());
+                assert!(file.is_file());
             },
         );
         assert_eq!(result.exit_code, 0);
     }
 
     #[test]
-    fn folder_input() {
-        let result = exec_with_temp_fs(vec!["./sub-folder"], |dir| {
-            let html_count = count_dir_file_count(&dir.join("sub-folder"), "html", true);
+    fn file_in_folder_out() {
+        let result = exec_with_temp_fs(vec!["hello.html", "--output", "converted"], |dir| {
+            let file = dir.join("converted").join("hello.md");
+            assert!(file.exists());
+            assert!(file.is_file());
+        });
+        assert_eq!(result.exit_code, 0);
+    }
+
+    #[test]
+    fn folder_in_folder_out() {
+        let result = exec_with_temp_fs(vec!["./sub-folder2", "--output", "./"], |dir| {
+            let html_count = count_dir_file_count(&dir.join("./sub-folder2"), "html", true);
             let md_count = count_dir_file_count(&dir, "md", true);
             assert_eq!(html_count, md_count);
         });
@@ -71,8 +113,26 @@ mod tests {
     }
 
     #[test]
-    fn glob_input_hierarchy() {
-        let result = exec_with_temp_fs(vec!["**/*.html"], |dir| {
+    fn folder_in_default_out() {
+        let result = exec_with_temp_fs(vec!["./**/*.html"], |_| {});
+        assert_eq!(result.exit_code, 1);
+        assert!(result
+            .stderr
+            .contains("Output to stdout doesn't support multiple files as the input."))
+    }
+
+    #[test]
+    fn folder_in_stdout_out() {
+        let result = exec_with_temp_fs(vec!["./**/*.html", "--output", "-"], |_| {});
+        assert_eq!(result.exit_code, 1);
+        assert!(result
+            .stderr
+            .contains("Output to stdout doesn't support multiple files as the input."))
+    }
+
+    #[test]
+    fn glob_in_folder_out_hierarchy() {
+        let result = exec_with_temp_fs(vec!["**/*.html", "--output", "./"], |dir| {
             let sub_folders = vec!["./", "sub-folder", "sub-folder2"];
             for sub_folder in sub_folders {
                 let html_count = count_dir_file_count(&dir.join(sub_folder), "html", false);
@@ -84,33 +144,50 @@ mod tests {
     }
 
     #[test]
-    fn glob_input_flatten() {
-        let result = exec_with_temp_fs(vec!["**/*.html", "--flatten-output"], |dir| {
-            let html_count = count_dir_file_count(&dir, "html", true);
-            let md_count = count_dir_file_count(&dir, "md", false);
-            assert_eq!(html_count, md_count);
-        });
+    fn glob_in_folder_out_flatten() {
+        let result = exec_with_temp_fs(
+            vec!["**/*.html", "--flatten-output", "--output", "./"],
+            |dir| {
+                let html_count = count_dir_file_count(&dir, "html", true);
+                let md_count = count_dir_file_count(&dir, "md", false);
+                assert_eq!(html_count, md_count);
+            },
+        );
         assert_eq!(result.exit_code, 0);
     }
 
     #[test]
     fn read_options_toml() {
-        let result = exec_with_temp_fs(vec!["hello.html", "--config", "cli-options.toml"], |dir| {
-            let md_file = dir.join("hello.md");
-            assert!(md_file.exists());
-            let md = fs::read_to_string(md_file).unwrap();
-            assert!(md.contains("Hello World!\n============"));
-        });
+        let result = exec_with_temp_fs(vec!["hello.html", "--config", "cli-options.toml"], |_| {});
         assert_eq!(result.exit_code, 0);
+        assert!(result.stdout.contains("Hello World!\n============"))
     }
 
     fn exec(args: Vec<&str>) -> ExecResult {
-        let output = Command::new("cargo")
+        exec_with_input(None, args)
+    }
+
+    fn exec_with_input(input_text: Option<&str>, args: Vec<&str>) -> ExecResult {
+        let mut child = Command::new("cargo")
             .arg("run")
             .arg("--")
             .args(args)
-            .output()
-            .unwrap();
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn child process");
+
+        if let Some(input_text) = input_text {
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin
+                    .write_all(input_text.as_bytes())
+                    .expect("Failed to write to stdin");
+            }
+        }
+
+        let output = child.wait_with_output().expect("Failed to read stdout");
+
         ExecResult {
             exit_code: output.status.code().unwrap(),
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
@@ -119,6 +196,14 @@ mod tests {
     }
 
     fn exec_with_temp_fs(args: Vec<&str>, verify: impl FnOnce(PathBuf) -> ()) -> ExecResult {
+        exec_with_temp_fs_and_input(None, args, verify)
+    }
+
+    fn exec_with_temp_fs_and_input(
+        input_text: Option<&str>,
+        args: Vec<&str>,
+        verify: impl FnOnce(PathBuf) -> (),
+    ) -> ExecResult {
         let tests_dir = env::current_dir().unwrap().join("tests");
         let html_dir = tests_dir.join("html");
         let temp_dir = tests_dir
@@ -133,13 +218,27 @@ mod tests {
         )
         .unwrap();
 
-        let output = Command::new("cargo")
-            .current_dir(temp_dir.clone())
+        let mut child = Command::new("cargo")
             .arg("run")
             .arg("--")
             .args(args)
-            .output()
-            .unwrap();
+            .current_dir(&temp_dir)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn child process");
+
+        if let Some(input_text) = input_text {
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin
+                    .write_all(input_text.as_bytes())
+                    .expect("Failed to write to stdin");
+            }
+        }
+
+        let output = child.wait_with_output().expect("Failed to read stdout");
+
         let result = ExecResult {
             exit_code: output.status.code().unwrap(),
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),

@@ -1,14 +1,15 @@
 mod cli_options;
 mod config_util;
+mod io_util;
 mod path_util;
 
-use std::{fs, path::PathBuf, process::exit, sync::Arc, time::Instant, vec};
+use std::{env::current_dir, fs, path::PathBuf, process::exit, sync::Arc, time::Instant, vec};
 
 use clap::Command;
 use cli_options::{cli_args, parse_cli_options, CliOptions};
 use htmd::{options::Options, HtmlToMarkdown};
 
-use glob::glob;
+use io_util::{resolve_input, resolve_output, Input, Output};
 use path_util::common_ancestor;
 use tokio::task::JoinHandle;
 
@@ -16,9 +17,10 @@ const ABOUT: &'static str = r#"
 The command line tool for htmd, an HTML to Markdown converter
 
 Examples: 
-  htmd-cli index.html
-  htmd-cli --input ./pages --output ./pages/md
-  htmd-cli -i *.html -o ./md"#;
+  htmd # Read input from stdin
+  htmd index.html
+  htmd --input ./pages --output ./pages/md
+  htmd -i *.html -o ./md"#;
 
 #[tokio::main]
 async fn main() {
@@ -37,52 +39,92 @@ async fn main() {
         exit(0);
     }
 
-    let input = matches.get_one::<String>("input").unwrap_or_else(|| {
-        match matches.get_one::<String>("input-unnamed") {
-            Some(input) => input,
-            None => {
-                println!("No input.\nUse -h or --help to print help messages.");
-                exit(0);
-            }
-        }
-    });
-
-    let files = get_html_files_from_input(input);
-
-    if files.is_empty() {
-        eprintln!("File or directory does not exists: {}", input);
-        exit(1);
-    }
-
-    let output = matches
-        .get_one::<String>("output")
-        .map(|path: &String| PathBuf::from(path))
-        .unwrap_or(std::env::current_dir().unwrap());
-
     let CliOptions {
         converter_options: options,
         ignored_tags,
         flatten_output,
     } = parse_cli_options(&matches);
 
-    convert(&files, &output, flatten_output, ignored_tags, options).await;
+    let input = resolve_input(&matches);
+    let output = resolve_output(&matches);
 
-    println!("Converted {} file(s) in {:?}.", files.len(), now.elapsed());
+    let converter = new_converter(ignored_tags, options);
+
+    match input {
+        Input::Stdin(text) => convert_text(converter, &text, &output).await,
+        Input::Fs(files) => {
+            convert_files(converter, &files, &output, flatten_output).await;
+            if output != Output::Stdout {
+                println!("Converted {} file(s) in {:?}.", files.len(), now.elapsed());
+            }
+        }
+    }
 }
 
-async fn convert(
+async fn convert_files(
+    converter: HtmlToMarkdown,
+    files: &Vec<PathBuf>,
+    output: &Output,
+    flatten_output: bool,
+) {
+    match output {
+        Output::Stdout => {
+            if files.len() > 1 {
+                let cwd = current_dir().expect("Cannot get current dir.");
+                let paths = files
+                    .iter()
+                    .map(|file| format!("  {:?}", file.strip_prefix(&cwd).unwrap_or(file)))
+                    .collect::<Vec<String>>()
+                    .join("\n");
+                eprintln!(
+                    "Output to stdout doesn't support multiple files as the input.\n\n\
+                    Input files:\n{}\n\n\
+                    Try to use a folder as the output:\n  --output converted",
+                    paths
+                );
+                exit(1);
+            }
+            let file = &files[0];
+            let text = fs::read_to_string(file)
+                .expect(format!("Failed to read file: {:?}", file).as_str());
+            convert_text(converter, &text, &Output::Stdout).await;
+        }
+        Output::Fs(output) => {
+            convert_and_write_files(converter, files, output, flatten_output).await;
+        }
+    }
+}
+
+async fn convert_text(converter: HtmlToMarkdown, text: &str, output: &Output) {
+    let md = converter
+        .convert(text)
+        .expect("Failed to parse html from text");
+    match output {
+        Output::Stdout => print!("{}", md),
+        Output::Fs(file) => {
+            if file.exists() && file.is_dir() {
+                eprintln!("Output cannot be a directory.");
+                exit(1);
+            }
+            fs::write(file, md).expect(format!("Failed to write to file: {:?}", file).as_str())
+        }
+    }
+}
+
+async fn convert_and_write_files(
+    converter: HtmlToMarkdown,
     files: &Vec<PathBuf>,
     output: &PathBuf,
     flatten_output: bool,
-    ignored_tags: Option<Vec<String>>,
-    options: Options,
 ) {
     if files.is_empty() {
         println!("Nothing to convert.");
         exit(0);
     }
 
-    let output_as_dir = files.len() > 0;
+    let single_file = files.len() == 1;
+
+    let output_as_dir = !single_file || (single_file && output.extension().is_none());
 
     if output_as_dir && output.exists() && output.is_file() {
         eprintln!("Multiple input files with non-directory output is unsupported.");
@@ -93,13 +135,7 @@ async fn convert(
         fs::create_dir_all(output).expect(format!("Cannot create dir: {:?}", output).as_str());
     }
 
-    let mut builder = HtmlToMarkdown::builder().options(options);
-
-    if let Some(ignored_tags) = ignored_tags {
-        builder = builder.skip_tags(ignored_tags.iter().map(|tag| tag.as_str()).collect());
-    }
-
-    let converter = Arc::new(builder.build());
+    let converter = Arc::new(converter);
 
     let base_dir = &common_ancestor(&files).unwrap();
 
@@ -177,66 +213,11 @@ async fn convert_file(
     }
 }
 
-fn get_html_files_from_input(pattern: &str) -> Vec<PathBuf> {
-    if pattern == "." || pattern == "./" {
-        // Fast path for the current dir
-        return read_dir_html_files(&std::env::current_dir().unwrap());
-    }
-    // Parse input as glob
-    let mut files: Vec<PathBuf> = Vec::new();
-    for entry in glob(pattern).expect("Failed to read input") {
-        match entry {
-            Ok(path) => {
-                let Some(ext) = path.extension() else {
-                    continue;
-                };
-                let Some(etx) = ext.to_str() else {
-                    continue;
-                };
-                let ext = etx.to_lowercase();
-                if ext == "html" || ext == "htm" {
-                    files.push(path);
-                }
-            }
-            Err(e) => eprintln!("Error while matching file: {}", e),
-        }
-    }
-    if !files.is_empty() {
-        return files;
-    }
-    // Treat the input as a file or a directory
-    let file = PathBuf::from(pattern);
-    if !file.exists() {
-        eprintln!("File or directory does not exist: {:?}", file);
-        exit(1);
-    }
-    if file.is_dir() {
-        read_dir_html_files(&file)
-    } else {
-        vec![file]
-    }
-}
+fn new_converter(ignored_tags: Option<Vec<String>>, options: Options) -> HtmlToMarkdown {
+    let mut builder = HtmlToMarkdown::builder().options(options);
 
-fn read_dir_html_files(dir: &PathBuf) -> Vec<PathBuf> {
-    let mut files: Vec<PathBuf> = Vec::new();
-    for entry in fs::read_dir(dir).unwrap() {
-        if let Ok(entry) = entry {
-            let child = entry.path();
-            if possible_html_file(&child) {
-                files.push(child);
-            }
-        }
+    if let Some(ignored_tags) = ignored_tags {
+        builder = builder.skip_tags(ignored_tags.iter().map(|tag| tag.as_str()).collect());
     }
-    files
-}
-
-fn possible_html_file(path: &PathBuf) -> bool {
-    let Some(ext) = path.extension() else {
-        return false;
-    };
-    let Some(ext) = ext.to_str() else {
-        return false;
-    };
-    let ext = ext.to_lowercase();
-    ext == "html" || ext == "htm"
+    builder.build()
 }
