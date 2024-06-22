@@ -29,7 +29,7 @@ impl fmt::Display for ParseConfigError {
 
 impl Error for ParseConfigError {}
 
-pub(crate) fn read_cli_options_from_config_file(
+pub(crate) fn read_cli_options_from_toml_file(
     filepath: &str,
 ) -> Result<CliOptions, Box<dyn Error>> {
     let text = fs::read_to_string(filepath)?;
