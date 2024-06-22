@@ -14,21 +14,49 @@
 ### Basic
 
 ```bash
-htmd test.html # Will generate test.md
-htmd --input test.html --output converted.md
+# Read input from stdin
+htmd
+
+# Will write output to stdout
+htmd test.html
+
+# Explicit input option
+htmd --input test.html
+
+# Write output to test.md by shell
+htmd test.html > test.md
+
+# Write output to test.md internally
+htmd test.html --output ./
+
+# Read html files from a directory
+htmd ./pages -o converted
 ```
 
-### Folders
+### Inputs
 
-```bash
-htmd pages --output converted
-```
+Stdin (`-` as the filename), file, directory, and glob pattern are supported.
 
-### Glob patterns
+This default input is `stdin`, so after you type only `htmd` it will wait for input, to finish typing, press <kbd>Ctrl</kbd> + <kbd>D</kbd> (<kbd>Ctrl</kbd> + <kbd>Z</kbd> on Windows).
 
-```bash
-htmd pages/**/*.htm
-```
+Example inputs:
+
+- Stdin: `-`, `< page.html`
+- File: `page.html`, `index.html`
+- Directory: `pages`, `./folder`
+- Glob pattern: `pages/\*\*/\*.html`, `./\*.html`
+
+### Output
+
+Stdout (`-` as the filename), file, and directory are supported. Defaults to stdout.
+
+You cannot set output as stdout when you have multiple input files.
+
+Example outputs:
+
+- Stdout: `-`
+- File: `output.md`,
+- Directory: `output`, `./converted`
 
 ### With conversion options
 
@@ -41,7 +69,7 @@ htmd test.html --ignored-tags "head,script,style" --heading-style setex
 By default, when converting files using glob patterns such as `pages/**/*.html`, output files will follow the original folder hierarchy, to flatten output files, use `--flatten-output`.
 
 ```bash
-htmd pages/**/*.html --output converted
+htmd pages/**/*.html --output converted --flatten-output
 ```
 
 ### Load options form toml file
