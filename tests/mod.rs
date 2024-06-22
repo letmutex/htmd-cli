@@ -158,7 +158,10 @@ mod tests {
 
     #[test]
     fn read_options_toml() {
-        let result = exec_with_temp_fs(vec!["hello.html", "--config", "cli-options.toml"], |_| {});
+        let result = exec_with_temp_fs(
+            vec!["hello.html", "--options-file", "cli-options.toml"],
+            |_| {},
+        );
         assert_eq!(result.exit_code, 0);
         assert!(result.stdout.contains("Hello World!\n============"))
     }

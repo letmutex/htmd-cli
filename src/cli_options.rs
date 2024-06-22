@@ -1,4 +1,4 @@
-use crate::config_util::read_cli_options_from_config_file;
+use crate::config_util::read_cli_options_from_toml_file;
 use clap::{Arg, ArgAction, ArgMatches};
 use htmd::options::{
     BrStyle, BulletListMarker, CodeBlockFence, CodeBlockStyle, HeadingStyle, HrStyle,
@@ -12,8 +12,8 @@ pub(crate) struct CliOptions {
 }
 
 pub(crate) fn parse_cli_options(matches: &ArgMatches) -> CliOptions {
-    if let Some(config) = matches.get_one::<String>("config") {
-        read_cli_options_from_config_file(config).expect("Failed to parse options from config file")
+    if let Some(config) = matches.get_one::<String>("options-file") {
+        read_cli_options_from_toml_file(config).expect("Failed to parse options from config file")
     } else {
         CliOptions {
             converter_options: parse_converter_options_from_cli_args(matches),
@@ -119,10 +119,10 @@ pub(crate) fn cli_args() -> Vec<Arg> {
                 "Specify output. Can be stdout ('-'), file, or directory; defaults to stdout",
             )
             .num_args(1),
-        Arg::new("config")
-            .long("config")
+        Arg::new("options-file")
+            .long("options-file")
             .help(
-                "Read cli options from a toml config file. Options are within [options] section;\n\
+                "Read cli options from a toml file. Options are within [options] section;\n\
                 if specified, other options will be ignored except for input and output",
             )
             .num_args(1),

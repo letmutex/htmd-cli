@@ -74,7 +74,7 @@ htmd pages/**/*.html --output converted --flatten-output
 
 ### Load options form toml file
 
-You can save your options to a toml config file
+You can save your options to a toml file
 
 ```toml
 # htmd-options.toml
@@ -83,10 +83,10 @@ ignored-tags =["head", "script", "style"]
 heading-style = "setex"
 ```
 
-Then load them using `--config`
+Then load them using `--options-file`
 
 ```
-htmd test.html --config htmd-options.toml
+htmd test.html --options-file htmd-options.toml
 ```
 
 # Install
