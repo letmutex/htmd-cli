@@ -7,7 +7,7 @@
 
 - Minimal, A 2MB+ binary is all you need
 - Batch, both file, directory and glob pattern are supported
-- Fast, it takes only ~1s to convert 200 html files (~70MB in total size, see the benchmark [README](./bench/README.md))
+- Fast, it takes less than 1s to convert 200 html files (~60MB in total size, see the benchmark [README](./bench/README.md))
 
 # Usages
 
