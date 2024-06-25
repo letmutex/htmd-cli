@@ -22,8 +22,7 @@ Examples:
   htmd --input ./pages --output ./pages/md
   htmd -i *.html -o ./md"#;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let now = Instant::now();
 
     let matches = Command::new("htmd-cli")
@@ -51,9 +50,9 @@ async fn main() {
     let converter = new_converter(ignored_tags, options);
 
     match input {
-        Input::Stdin(text) => convert_text(converter, &text, &output).await,
+        Input::Stdin(text) => convert_text(&converter, &text, &output),
         Input::Fs(files) => {
-            convert_files(converter, &files, &output, flatten_output).await;
+            convert_files(converter, &files, &output, flatten_output);
             if output != Output::Stdout {
                 println!("Converted {} file(s) in {:?}.", files.len(), now.elapsed());
             }
@@ -61,7 +60,7 @@ async fn main() {
     }
 }
 
-async fn convert_files(
+fn convert_files(
     converter: HtmlToMarkdown,
     files: &Vec<PathBuf>,
     output: &Output,
@@ -83,19 +82,41 @@ async fn convert_files(
                     paths
                 );
                 exit(1);
+            } else {
+                let file = &files[0];
+                let text = fs::read_to_string(file)
+                    .expect(format!("Failed to read file: {:?}", file).as_str());
+                convert_text(&converter, &text, &Output::Stdout);
             }
-            let file = &files[0];
-            let text = fs::read_to_string(file)
-                .expect(format!("Failed to read file: {:?}", file).as_str());
-            convert_text(converter, &text, &Output::Stdout).await;
         }
         Output::Fs(output) => {
-            convert_and_write_files(converter, files, output, flatten_output).await;
+            let len = files.len();
+            if len == 0 {
+                println!("Nothing to convert.");
+                exit(0);
+            } else if len == 1 {
+                let file = &files[0];
+                let output_as_dir = !output.extension().is_some();
+                let base_dir = &file.parent().unwrap().to_path_buf();
+                convert_file(
+                    file,
+                    &converter,
+                    output_as_dir,
+                    flatten_output,
+                    base_dir,
+                    output,
+                );
+            } else {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    convert_multiple_and_write(converter, files, output, flatten_output).await;
+                });
+            }
         }
     }
 }
 
-async fn convert_text(converter: HtmlToMarkdown, text: &str, output: &Output) {
+fn convert_text(converter: &HtmlToMarkdown, text: &str, output: &Output) {
     let md = converter
         .convert(text)
         .expect("Failed to parse html from text");
@@ -111,27 +132,18 @@ async fn convert_text(converter: HtmlToMarkdown, text: &str, output: &Output) {
     }
 }
 
-async fn convert_and_write_files(
+async fn convert_multiple_and_write(
     converter: HtmlToMarkdown,
     files: &Vec<PathBuf>,
     output: &PathBuf,
     flatten_output: bool,
 ) {
-    if files.is_empty() {
-        println!("Nothing to convert.");
-        exit(0);
-    }
-
-    let single_file = files.len() == 1;
-
-    let output_as_dir = !single_file || (single_file && output.extension().is_none());
-
-    if output_as_dir && output.exists() && output.is_file() {
+    if output.exists() && output.is_file() {
         eprintln!("Multiple input files with non-directory output is unsupported.");
         exit(1);
     }
 
-    if output_as_dir && !output.exists() {
+    if !output.exists() {
         fs::create_dir_all(output).expect(format!("Cannot create dir: {:?}", output).as_str());
     }
 
@@ -149,13 +161,12 @@ async fn convert_and_write_files(
         let handle = tokio::spawn(async move {
             convert_file(
                 &file_clone,
-                converter_clone,
-                output_as_dir,
+                &converter_clone,
+                true,
                 flatten_output,
                 &base_dir_clone,
                 &output_clone,
-            )
-            .await;
+            );
         });
         handles.push(handle);
     }
@@ -165,9 +176,9 @@ async fn convert_and_write_files(
     }
 }
 
-async fn convert_file(
+fn convert_file(
     file: &PathBuf,
-    converter: Arc<HtmlToMarkdown>,
+    converter: &HtmlToMarkdown,
     output_as_dir: bool,
     flatten_output: bool,
     base_dir: &PathBuf,
