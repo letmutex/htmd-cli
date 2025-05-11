@@ -166,6 +166,44 @@ mod tests {
         assert!(result.stdout.contains("Hello World!\n============"))
     }
 
+    #[test]
+    fn test_ul_bullet_spacing() {
+        let html = "<ul><li>Item 1</li><li>Item 2</li></ul>";
+        let result = exec_with_input(Some(html), vec![]);
+        assert_eq!(result.stdout, "*   Item 1\n*   Item 2");
+
+        let result = exec_with_input(Some(html), vec!["--ul-bullet-spacing", "5"]);
+        assert_eq!(result.stdout, "*     Item 1\n*     Item 2");
+    }
+
+    #[test]
+    fn test_ol_number_spacing() {
+        let html = "<ol><li>Item A</li><li>Item B</li></ol>";
+        let result = exec_with_input(Some(html), vec![]);
+        assert_eq!(result.stdout, "1.  Item A\n2.  Item B");
+
+        let result = exec_with_input(Some(html), vec!["--ol-number-spacing", "4"]);
+        assert_eq!(result.stdout, "1.    Item A\n2.    Item B");
+    }
+
+    #[test]
+    fn test_scripting_enabled() {
+        let html = "<noscript><div>Content</div></noscript>";
+        let result = exec_with_input(Some(html), vec![]);
+        assert_eq!(result.stdout.trim(), "<div>Content</div>");
+
+        let html = "<noscript><div>Content</div></noscript>";
+        let result = exec_with_input(Some(html), vec!["--scripting-enabled", "false"]);
+        assert_eq!(result.stdout.trim(), "Content");
+    }
+
+    #[test]
+    fn test_link_style_inlined_prefer_autolinks() {
+        let html = r#"<a href="https://example.com">https://example.com</a>"#;
+        let result = exec_with_input(Some(html), vec!["--link-style", "inlined-prefer-autolinks"]);
+        assert_eq!(result.stdout.trim(), "<https://example.com>");
+    }
+
     fn exec(args: Vec<&str>) -> ExecResult {
         exec_with_input(None, args)
     }

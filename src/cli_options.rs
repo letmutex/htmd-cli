@@ -1,5 +1,5 @@
 use crate::config_util::read_cli_options_from_toml_file;
-use clap::{Arg, ArgAction, ArgMatches};
+use clap::{value_parser, Arg, ArgAction, ArgMatches};
 use htmd::options::{
     BrStyle, BulletListMarker, CodeBlockFence, CodeBlockStyle, HeadingStyle, HrStyle,
     LinkReferenceStyle, LinkStyle, Options,
@@ -9,6 +9,7 @@ pub(crate) struct CliOptions {
     pub converter_options: Options,
     pub ignored_tags: Option<Vec<String>>,
     pub flatten_output: bool,
+    pub scripting_enabled: bool,
 }
 
 pub(crate) fn parse_cli_options(matches: &ArgMatches) -> CliOptions {
@@ -19,6 +20,7 @@ pub(crate) fn parse_cli_options(matches: &ArgMatches) -> CliOptions {
             converter_options: parse_converter_options_from_cli_args(matches),
             ignored_tags: parse_ignored_tags(matches),
             flatten_output: *matches.get_one::<bool>("flatten-output").unwrap(),
+            scripting_enabled: *matches.get_one::<bool>("scripting-enabled").unwrap(),
         }
     }
 }
@@ -49,6 +51,7 @@ fn parse_converter_options_from_cli_args(matches: &ArgMatches) -> Options {
 
     let link_style = match matches.get_one::<String>("link-style").unwrap().as_str() {
         "referenced" => LinkStyle::Referenced,
+        "inlined-prefer-autolinks" => LinkStyle::InlinedPreferAutolinks,
         "inlined" | _ => LinkStyle::Inlined,
     };
 
@@ -91,6 +94,10 @@ fn parse_converter_options_from_cli_args(matches: &ArgMatches) -> Options {
 
     let preformatted_code = *matches.get_one::<bool>("preformatted-code").unwrap();
 
+    let ul_bullet_spacing = *matches.get_one::<u8>("ul-bullet-spacing").unwrap();
+
+    let ol_number_spacing = *matches.get_one::<u8>("ol-number-spacing").unwrap();
+
     Options {
         heading_style,
         hr_style,
@@ -100,6 +107,8 @@ fn parse_converter_options_from_cli_args(matches: &ArgMatches) -> Options {
         code_block_style,
         code_block_fence,
         bullet_list_marker,
+        ul_bullet_spacing,
+        ol_number_spacing,
         preformatted_code,
     }
 }
@@ -134,6 +143,12 @@ pub(crate) fn cli_args() -> Vec<Arg> {
             .long("ignored-tags")
             .help("Set an HTML tag list to be ignored, separated by commas")
             .num_args(1),
+        Arg::new("scripting-enabled")
+            .long("scripting-enabled")
+            .help("Option for HTML parsing. Set to false to parse contents in <noscript>")
+            .value_parser(value_parser!(bool))
+            .default_value("true")
+            .required(false),
         Arg::new("heading-style")
             .long("heading-style")
             .num_args(1)
@@ -157,7 +172,7 @@ pub(crate) fn cli_args() -> Vec<Arg> {
             .num_args(1)
             .default_value("inlined")
             .default_missing_value("inlined")
-            .value_parser(["inlined", "referenced"]),
+            .value_parser(["inlined", "inlined-prefer-autolinks", "referenced"]),
         Arg::new("link-reference-style")
             .long("link-reference-style")
             .num_args(1)
@@ -186,6 +201,18 @@ pub(crate) fn cli_args() -> Vec<Arg> {
             .long("preformatted-code")
             .help("Preserve whitespace in inline code tags")
             .action(ArgAction::SetTrue),
+        Arg::new("ul-bullet-spacing")
+            .long("ul-bullet-spacing")
+            .help("Spaces between ul bullet chars and contents")
+            .value_parser(value_parser!(u8))
+            .default_value("3")
+            .required(false),
+        Arg::new("ol-number-spacing")
+            .long("ol-number-spacing")
+            .help("Spaces between ol period chars and contents")
+            .value_parser(value_parser!(u8))
+            .default_value("2")
+            .required(false),
         Arg::new("version")
             .short('v')
             .long("version")

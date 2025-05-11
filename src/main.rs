@@ -42,12 +42,13 @@ fn main() {
         converter_options: options,
         ignored_tags,
         flatten_output,
+        scripting_enabled,
     } = parse_cli_options(&matches);
 
     let input = resolve_input(&matches);
     let output = resolve_output(&matches);
 
-    let converter = new_converter(ignored_tags, options);
+    let converter = new_converter(ignored_tags, options, scripting_enabled);
 
     match input {
         Input::Stdin(text) => convert_text(&converter, &text, &output),
@@ -224,8 +225,14 @@ fn convert_file(
     }
 }
 
-fn new_converter(ignored_tags: Option<Vec<String>>, options: Options) -> HtmlToMarkdown {
-    let mut builder = HtmlToMarkdown::builder().options(options);
+fn new_converter(
+    ignored_tags: Option<Vec<String>>,
+    options: Options,
+    scripting_enabled: bool,
+) -> HtmlToMarkdown {
+    let mut builder = HtmlToMarkdown::builder()
+        .options(options)
+        .scripting_enabled(scripting_enabled);
 
     if let Some(ignored_tags) = ignored_tags {
         builder = builder.skip_tags(ignored_tags.iter().map(|tag| tag.as_str()).collect());
