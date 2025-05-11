@@ -58,6 +58,15 @@ Example outputs:
 - File: `output.md`,
 - Directory: `output`, `./converted`
 
+### Why `stdin` and `stdout` as the default?
+
+This is a standard behavior for many cli tools, it can integrate with other tools easily. Here is an awesome showcase from [#7](https://github.com/letmutex/htmd-cli/issues/7):
+
+```bash
+# Read htmx documentation right in the terminal
+curl -L htmx.org/docs | htmd | glow -p
+```
+
 ### With conversion options
 
 ```bash
