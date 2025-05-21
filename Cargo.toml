@@ -16,7 +16,7 @@ clap = "4.5.7"
 glob = "0.3.1"
 htmd = "0.2.2"
 toml = "0.8.14"
-tokio = { version = "1.38.0", features = ["rt-multi-thread"] }
+tokio = { version = "1.38.2", features = ["rt-multi-thread"] }
 
 [dev-dependencies.uuid]
 version = "1.8.0"
