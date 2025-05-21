@@ -1,6 +1,6 @@
 [package]
 name = "htmd-cli"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["letmutex"]
 description = "The command line tool for htmd."
@@ -14,7 +14,7 @@ readme = "README.md"
 [dependencies]
 clap = "4.5.7"
 glob = "0.3.1"
-htmd = "0.2"
+htmd = "0.2.2"
 toml = "0.8.14"
 tokio = { version = "1.38.0", features = ["rt-multi-thread"] }
 
