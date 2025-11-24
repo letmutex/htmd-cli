@@ -33,6 +33,13 @@ jobs:
             name: htmd-cli-darwin-x86_64.tar.gz
             command: both
 
+          - release_for: macOS-aarch64
+            os: macOS-latest
+            target: aarch64-apple-darwin
+            bin: htmd
+            name: htmd-cli-darwin-aarch64.tar.gz
+            command: both
+
     permissions:
       contents: write
 
