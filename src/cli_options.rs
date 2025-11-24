@@ -110,6 +110,7 @@ fn parse_converter_options_from_cli_args(matches: &ArgMatches) -> Options {
         ul_bullet_spacing,
         ol_number_spacing,
         preformatted_code,
+        translation_mode: htmd::options::TranslationMode::Pure,
     }
 }
 

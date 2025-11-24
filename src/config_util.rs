@@ -181,6 +181,7 @@ fn read_converter_options(options: &Value) -> Result<Options, Box<dyn Error>> {
         ul_bullet_spacing,
         ol_number_spacing,
         preformatted_code,
+        translation_mode: htmd::options::TranslationMode::Pure,
     };
 
     Ok(options)

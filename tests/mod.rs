@@ -190,7 +190,7 @@ mod tests {
     fn test_scripting_enabled() {
         let html = "<noscript><div>Content</div></noscript>";
         let result = exec_with_input(Some(html), vec![]);
-        assert_eq!(result.stdout.trim(), "<div>Content</div>");
+        assert_eq!(result.stdout.trim(), "\\<div>Content\\</div>");
 
         let html = "<noscript><div>Content</div></noscript>";
         let result = exec_with_input(Some(html), vec!["--scripting-enabled", "false"]);
