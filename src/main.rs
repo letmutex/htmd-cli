@@ -97,7 +97,7 @@ fn convert_files(
                 exit(0);
             } else if len == 1 {
                 let file = &files[0];
-                let output_as_dir = !output.extension().is_some();
+                let output_as_dir = output.is_dir() || output.extension().is_none();
                 let base_dir = &file.parent().unwrap().to_path_buf();
                 convert_file(
                     file,
