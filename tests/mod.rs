@@ -204,14 +204,94 @@ mod tests {
         assert_eq!(result.stdout.trim(), "<https://example.com>");
     }
 
+    #[test]
+    fn glob_in_xhtml_files() {
+        let result = exec_with_temp_fs_and_setup(
+            |dir| {
+                fs::write(dir.join("page1.xhtml"), "<h1>Page 1</h1>").unwrap();
+                fs::write(dir.join("page2.xhtml"), "<h2>Page 2</h2>").unwrap();
+            },
+            vec!["--ignored-tags", "title,style", "-i", "*.xhtml", "-o", "./"],
+            |dir| {
+                assert!(dir.join("page1.md").exists());
+                assert!(dir.join("page2.md").exists());
+                assert_eq!(
+                    "# Page 1",
+                    fs::read_to_string(dir.join("page1.md")).unwrap().trim()
+                );
+                assert_eq!(
+                    "## Page 2",
+                    fs::read_to_string(dir.join("page2.md")).unwrap().trim()
+                );
+            },
+        );
+        assert_eq!(result.exit_code, 0);
+    }
+
+    #[test]
+    fn single_xhtml_file_in_folder_out() {
+        let result = exec_with_temp_fs_and_setup(
+            |dir| {
+                fs::write(dir.join("single.xhtml"), "<h1>Single XHTML</h1>").unwrap();
+            },
+            vec!["single.xhtml", "--output", "./"],
+            |dir| {
+                assert!(dir.join("single.md").exists());
+                assert_eq!(
+                    "# Single XHTML",
+                    fs::read_to_string(dir.join("single.md")).unwrap().trim()
+                );
+            },
+        );
+        assert_eq!(result.exit_code, 0);
+    }
+
+    #[test]
+    fn folder_in_with_xhtml_files() {
+        let result = exec_with_temp_fs_and_setup(
+            |dir| {
+                let xhtml_dir = dir.join("xhtml-folder");
+                fs::create_dir_all(&xhtml_dir).unwrap();
+                fs::write(xhtml_dir.join("doc.xhtml"), "<p>Doc</p>").unwrap();
+            },
+            vec!["-i", "./xhtml-folder", "--output", "./output"],
+            |dir| {
+                assert!(dir.join("output").join("doc.md").exists());
+            },
+        );
+        assert_eq!(result.exit_code, 0);
+    }
+
+    #[test]
+    fn glob_no_matches_error() {
+        let result = exec_with_temp_fs(vec!["-i", "*.xhtml", "--output", "./"], |_| {});
+        assert_eq!(result.exit_code, 1);
+        assert!(result
+            .stderr
+            .contains("No matching HTML files found for pattern: *.xhtml"));
+    }
+
+    #[test]
+    fn empty_dir_error() {
+        let result = exec_with_temp_fs_and_setup(
+            |dir| {
+                fs::create_dir_all(dir.join("empty-folder")).unwrap();
+            },
+            vec!["-i", "./empty-folder", "--output", "./"],
+            |_| {},
+        );
+        assert_eq!(result.exit_code, 1);
+        assert!(result
+            .stderr
+            .contains("No HTML files found in directory: ./empty-folder"));
+    }
+
     fn exec(args: Vec<&str>) -> ExecResult {
         exec_with_input(None, args)
     }
 
     fn exec_with_input(input_text: Option<&str>, args: Vec<&str>) -> ExecResult {
-        let mut child = Command::new("cargo")
-            .arg("run")
-            .arg("--")
+        let mut child = Command::new(env!("CARGO_BIN_EXE_htmd"))
             .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -225,6 +305,8 @@ mod tests {
                     .write_all(input_text.as_bytes())
                     .expect("Failed to write to stdin");
             }
+        } else {
+            drop(child.stdin.take());
         }
 
         let output = child.wait_with_output().expect("Failed to read stdout");
@@ -236,14 +318,31 @@ mod tests {
         }
     }
 
-    fn exec_with_temp_fs(args: Vec<&str>, verify: impl FnOnce(PathBuf) -> ()) -> ExecResult {
-        exec_with_temp_fs_and_input(None, args, verify)
+    fn exec_with_temp_fs(args: Vec<&str>, verify: impl FnOnce(PathBuf)) -> ExecResult {
+        exec_with_temp_fs_and_setup(|_| {}, args, verify)
+    }
+
+    fn exec_with_temp_fs_and_setup(
+        setup: impl FnOnce(&Path),
+        args: Vec<&str>,
+        verify: impl FnOnce(PathBuf),
+    ) -> ExecResult {
+        exec_with_temp_fs_and_input_and_setup(None, setup, args, verify)
     }
 
     fn exec_with_temp_fs_and_input(
         input_text: Option<&str>,
         args: Vec<&str>,
-        verify: impl FnOnce(PathBuf) -> (),
+        verify: impl FnOnce(PathBuf),
+    ) -> ExecResult {
+        exec_with_temp_fs_and_input_and_setup(input_text, |_| {}, args, verify)
+    }
+
+    fn exec_with_temp_fs_and_input_and_setup(
+        input_text: Option<&str>,
+        setup: impl FnOnce(&Path),
+        args: Vec<&str>,
+        verify: impl FnOnce(PathBuf),
     ) -> ExecResult {
         let tests_dir = env::current_dir().unwrap().join("tests");
         let html_dir = tests_dir.join("html");
@@ -259,9 +358,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut child = Command::new("cargo")
-            .arg("run")
-            .arg("--")
+        setup(&temp_dir);
+
+        let mut child = Command::new(env!("CARGO_BIN_EXE_htmd"))
             .args(args)
             .current_dir(&temp_dir)
             .stdin(Stdio::piped())
@@ -276,6 +375,8 @@ mod tests {
                     .write_all(input_text.as_bytes())
                     .expect("Failed to write to stdin");
             }
+        } else {
+            drop(child.stdin.take());
         }
 
         let output = child.wait_with_output().expect("Failed to read stdout");
